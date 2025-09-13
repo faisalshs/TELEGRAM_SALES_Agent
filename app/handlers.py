@@ -1,3 +1,17 @@
+
+# Admin-store aware catalog loader
+def _get_catalog_path() -> Path:
+    try:
+        root = Path(__file__).resolve().parent.parent
+        store = json.loads((root / "data" / "admin_store.json").read_text(encoding="utf-8"))
+        rel = store.get("catalog_file") or ""+str(_get_catalog_path())+""
+        p = root / rel
+        return p if p.exists() else (root / "product_data" / "jatri_books_info.md")
+    except Exception:
+        root = Path(__file__).resolve().parent.parent
+        return root / "product_data" / "jatri_books_info.md"
+from pathlib import Path
+import json
 import logging
 import io
 import os

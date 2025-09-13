@@ -118,3 +118,35 @@ This project includes a `Dockerfile` that installs **ffmpeg**, so we can convert
 - ffmpeg is installed in the container (see `Dockerfile`), so no extra setup.
 - If you ever face large audio or long replies, Telegram limits may apply.
 - Health route is `/` returning `{"status":"ok"}`.
+
+
+---
+
+## Admin Panel (Render‑friendly)
+
+This project now includes an **Admin Panel** served from the same web process (no extra dynos/services).
+
+### Features
+- Change **bot name**, **AI persona (system prompt)**, and **mode** (webhook <-> polling).
+- Upload **knowledge base** as **Markdown** or **PDF**. PDFs are converted to Markdown and stored under `product_data/uploads/`.
+- (Optional) Manage **TELEGRAM_TOKEN**, **GEMINI_API_KEY**, **PUBLIC_BASE_URL** directly from the panel when `ADMIN_ALLOW_SET_SECRETS=true`.
+
+### Security
+- Protected via **HTTP Basic Auth**. Set:
+  - `ADMIN_USERNAME` (default `admin`)
+  - `ADMIN_PASSWORD` (required — set a strong password)
+- If you enable secret management in the panel, also set `ADMIN_ALLOW_SET_SECRETS=true`.
+
+### Endpoints
+- Health check: `GET /` → `{"status":"ok"}`
+- Admin: `GET /admin` (Basic Auth)
+
+### Deploy notes (Render Free Tier)
+1. Make sure your plan is a **Web Service** with Dockerfile (as included) or `render.yaml`.
+2. Set environment variables:  
+   - `TELEGRAM_TOKEN`, `GEMINI_API_KEY`  
+   - `ADMIN_USERNAME`, `ADMIN_PASSWORD` (required for /admin)  
+   - Optional: `PUBLIC_BASE_URL` (otherwise uses `RENDER_EXTERNAL_URL`), `ADMIN_ALLOW_SET_SECRETS=true`, `MODE=webhook|polling`
+3. (Recommended) Add a **Persistent Disk** on Render if you want uploads/settings to survive restarts and deploys. Mount at `/opt/render/project/src/data` and `/opt/render/project/src/product_data/uploads` or adjust paths.
+4. Webhook auto-config: when `PUBLIC_BASE_URL` (or `RENDER_EXTERNAL_URL`) is set, the bot will use `https://<BASE>/<TELEGRAM_TOKEN>`.
+

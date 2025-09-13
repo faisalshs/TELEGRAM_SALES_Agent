@@ -1,3 +1,19 @@
+
+from pathlib import Path
+import json
+
+def _load_admin_overrides():
+    try:
+        root = Path(__file__).resolve().parent.parent
+        store = json.loads((root / "data" / "admin_store.json").read_text(encoding="utf-8"))
+        return store
+    except Exception:
+        return {}
+
+ADMIN_OVERRIDES = _load_admin_overrides()
+BOT_NAME_OVERRIDE = ADMIN_OVERRIDES.get("bot_name")
+AI_PERSONA_OVERRIDE = ADMIN_OVERRIDES.get("ai_persona")
+
 import re
 import logging
 from pathlib import Path
@@ -75,3 +91,5 @@ class GeminiChat:
         prompt = f"{message}\n\n---\n{final_instruction}"
         resp = convo.send_message(prompt)
         return resp.text or "Sorry, I couldn't generate a response right now."
+
+# GeminiChat should reference AI_PERSONA_OVERRIDE if set.

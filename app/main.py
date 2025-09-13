@@ -1,5 +1,7 @@
 import logging
 from telegram.ext import Application
+from aiohttp import web
+from .admin import mount_admin_routes
 
 from .config import load_settings
 from .bot import GeminiChat
@@ -33,6 +35,7 @@ def main():
         url_path=cfg.telegram_token,
         webhook_url=webhook_url,           # if None on first boot, set PUBLIC_BASE_URL and redeploy once
         drop_pending_updates=True,
+        web_app=web_app,
     )
 
 

@@ -1,0 +1,9 @@
+{
+  "bot_name": "Jatri Bookseller Bot",
+  "ai_persona": "You are a helpful, friendly sales assistant for our bookstore campaign. Speak concisely and persuasively.",
+  "catalog_file": "product_data/jatri_books_info.md",
+  "TELEGRAM_TOKEN": "",
+  "GEMINI_API_KEY": "",
+  "PUBLIC_BASE_URL": "",
+  "MODE": "webhook"
+}
