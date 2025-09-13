@@ -1,6 +1,7 @@
 import logging
 from telegram.ext import Application
 from aiohttp import web
+
 from .config import load_settings
 from .bot import GeminiChat
 from .handlers import BotHandlers
@@ -12,24 +13,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     cfg = load_settings()
 
-    # Configure Gemini (done inside bot/handlers as needed)
+    # Build Telegram application
     application = Application.builder().token(cfg.telegram_token).build()
 
+    # Instantiate chat engine WITH API KEY (fixes TypeError)
+    bot = GeminiChat(api_key=cfg.gemini_api_key)
+
     # Register handlers
-    bot = GeminiChat()
-    handlers = BotHandlers(bot)
+    handlers = BotHandlers(chat_engine=bot)
     handlers.register(application)
 
-    # Build aiohttp web_app to serve health + admin panel
+    # aiohttp app: health + admin panel
     web_app = web.Application()
+
     async def health(request):
         return web.json_response({"status": "ok"})
+
     web_app.router.add_get("/", health)
     mount_admin_routes(web_app)
 
+    # Allow local polling mode if desired
     if cfg.mode == "polling":
         logger.info("MODE=polling -> starting polling")
         application.run_polling(drop_pending_updates=True)
@@ -49,6 +56,7 @@ def main():
         drop_pending_updates=True,
         web_app=web_app,
     )
+
 
 if __name__ == "__main__":
     main()
