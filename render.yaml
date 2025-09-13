@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: jatri-bookseller-bot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+    autoDeploy: true
