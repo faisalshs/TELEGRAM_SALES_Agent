@@ -1,15 +1,3 @@
-
-# Admin-store aware catalog loader
-def _get_catalog_path() -> Path:
-    try:
-        root = Path(__file__).resolve().parent.parent
-        store = json.loads((root / "data" / "admin_store.json").read_text(encoding="utf-8"))
-        rel = store.get("catalog_file") or ""+str(_get_catalog_path())+""
-        p = root / rel
-        return p if p.exists() else (root / "product_data" / "jatri_books_info.md")
-    except Exception:
-        root = Path(__file__).resolve().parent.parent
-        return root / "product_data" / "jatri_books_info.md"
 from pathlib import Path
 import json
 import logging
@@ -29,6 +17,25 @@ from .bot import detect_language, GeminiChat, LANG_MAP
 
 logger = logging.getLogger(__name__)
 
+# Admin-store aware catalog loader
+def _get_catalog_path() -> Path:
+    try:
+        root = Path(__file__).resolve().parent.parent
+        store_path = root / "data" / "admin_store.json"
+        store = {}
+        if store_path.exists():
+            try:
+                store = json.loads(store_path.read_text(encoding="utf-8"))
+            except Exception:
+                store = {}
+        rel = store.get("catalog_file") or "product_data/jatri_books_info.md"
+        p = root / rel
+        return p if p.exists() else (root / "product_data" / "jatri_books_info.md")
+    except Exception:
+        root = Path(__file__).resolve().parent.parent
+        return root / "product_data" / "jatri_books_info.md"
+
+
 def mp3_to_oga_ffmpeg(mp3_bytes: bytes, out_path: Path):
     """
     Convert MP3 bytes to OGG/Opus voice format using ffmpeg.
@@ -40,9 +47,6 @@ def mp3_to_oga_ffmpeg(mp3_bytes: bytes, out_path: Path):
     with open(mp3_path, "wb") as f:
         f.write(mp3_bytes)
 
-    # Build ffmpeg command
-    # -vn: no video, -c:a libopus: opus codec, -b:a 48k reasonable bitrate
-    # Output must be .oga (ogg container with opus)
     cmd = [
         "ffmpeg",
         "-y",
@@ -54,6 +58,7 @@ def mp3_to_oga_ffmpeg(mp3_bytes: bytes, out_path: Path):
         str(out_path)
     ]
     subprocess.run(cmd, check=True, capture_output=True)
+
 
 class BotHandlers:
     def __init__(self, chat_engine: GeminiChat):
@@ -107,65 +112,3 @@ class BotHandlers:
         voice = update.message.voice
         if not voice:
             await update.message.reply_text("I couldn't find a voice message. Please try again. 🎤")
-            return
-
-        try:
-            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-
-            # 1) Download Telegram voice note (OGG/Opus) to a temp file
-            file = await context.bot.get_file(voice.file_id)
-            temp_dir = Path("/tmp")
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            ogg_path = temp_dir / f"voice_{user_id}.oga"
-            await file.download_to_drive(str(ogg_path))
-
-            # 2) Upload to Gemini for transcription (no transcoding needed)
-            uploaded = genai.upload_file(path=str(ogg_path), mime_type="audio/ogg")
-            transcription_prompt = ("Transcribe the following audio and identify its language "
-                                    "(choose from English, Arabic, Hindi, or Bengali). "
-                                    "Respond in the format: [LANGUAGE_CODE]: [Transcription]. For example: bn: কেমন আছেন?")
-            model = self.chat_engine._model  # reuse configured model
-            tr = model.generate_content([transcription_prompt, uploaded])
-            genai.delete_file(uploaded.name)
-
-            transcribed_text = (tr.text or "").strip()
-            logger.info("Transcription: %s", transcribed_text)
-
-            # 3) Parse "xx: text" format; fallback to detection
-            if ":" in transcribed_text:
-                lang_code, user_text = transcribed_text.split(":", 1)
-                lang_code = (lang_code or "").strip().lower()
-                user_text = (user_text or "").strip()
-            else:
-                user_text = transcribed_text
-                lang_code = detect_language(user_text)
-
-            if not user_text:
-                await update.message.reply_text("Sorry, I couldn't understand that voice message. Please try again. 🎤")
-                return
-
-            await update.message.reply_text(f"Heard: *{user_text}*", parse_mode=ParseMode.MARKDOWN)
-
-            # 4) Get chatbot reply text in same language
-            reply_text = self.chat_engine.reply(user_id, user_text, lang_code)
-
-            # 5) TTS using gTTS → MP3
-            tts = gTTS(text=reply_text, lang=lang_code if lang_code in ("en","ar","hi","bn") else "en")
-            mp3_buf = io.BytesIO()
-            tts.write_to_fp(mp3_buf)
-            mp3_buf.seek(0)
-            mp3_bytes = mp3_buf.read()
-
-            # 6) Convert MP3 → OGG Opus (true Telegram "voice") with ffmpeg, then send_voice
-            out_oga = temp_dir / f"reply_{user_id}.oga"
-            mp3_to_oga_ffmpeg(mp3_bytes, out_oga)
-
-            with open(out_oga, "rb") as f:
-                await context.bot.send_voice(chat_id=update.effective_chat.id, voice=f)
-
-        except subprocess.CalledProcessError as ce:
-            logger.error("ffmpeg conversion failed: %s", ce, exc_info=True)
-            await update.message.reply_text("I generated a reply but couldn't format the voice properly. Try text for now, or contact support.")
-        except Exception as e:
-            logger.error("Error handling voice message: %s", e, exc_info=True)
-            await update.message.reply_text("I'm sorry, I had trouble with that voice message. Please try again. 🎤")
